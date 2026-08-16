@@ -149,6 +149,99 @@ python -m pytest tests/ -v
 
 33 tests, **no network access required.** Real mainnet accounts are captured as base64 in `tests/fixtures/accounts.json` and replayed offline; the transfer-hook escalation path is covered by synthetic accounts built from the same verified layouts, since hook-bearing mints are rare on mainnet.
 
+## Web app
+
+There's a browser front end for people who don't live in a terminal: paste a mint
+address, press scan, get a plain-English report. The API collapses zentry's five
+severity bands into the four questions an ordinary buyer actually has.
+
+```
+Can anyone create more of this token?                  -> mint
+Can anyone freeze your wallet?                         -> freeze
+Can anyone take your tokens out of your wallet?        -> seize
+Can anyone block or tax your ability to sell?          -> transfer
+```
+
+Each answers `safe` / `caution` / `danger` with a written reason.
+
+```
+zentry/          existing package - the scanner
+api/main.py      FastAPI wrapper (POST /scan, GET /health)
+frontend/        single-file vanilla dark UI, no build step
+Procfile         Railway process definition
+railway.toml     Railway build + healthcheck config
+requirements.txt web deps + zentry's own
+```
+
+### Run it locally
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn api.main:app --reload --port 8000
+```
+
+Then open `frontend/index.html` — either straight from disk, or served:
+
+```bash
+cd frontend && python3 -m http.server 8080
+```
+
+Set `BASE_URL` on the first JS line of `frontend/index.html` to your API address.
+It ships pointing at `http://127.0.0.1:8077`.
+
+### API
+
+```bash
+curl -X POST http://localhost:8000/scan \
+  -H 'Content-Type: application/json' \
+  -d '{"mint":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"}'
+```
+
+| Route | Purpose |
+|---|---|
+| `POST /scan` | `{"mint": "<address>"}` → full report |
+| `GET /health` | `{"status": "ok"}` — Railway healthcheck target |
+| `GET /` | version and route listing |
+
+Errors return a plain sentence in `detail`, never a stack trace: `400` for a
+malformed address or a non-mint account, `404` for an address that doesn't exist,
+`503` when Solana RPC is unreachable or rate limiting.
+
+### Deploy the backend to Railway
+
+1. Push this repo to GitHub.
+2. On [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo** → pick this repo.
+3. Railway reads `requirements.txt` and `railway.toml`, then starts
+   `uvicorn api.main:app --host 0.0.0.0 --port $PORT`. `$PORT` is injected — don't hardcode it.
+4. **Settings → Networking → Generate Domain** to get a public URL.
+5. Confirm it's alive: `curl https://<your-app>.up.railway.app/health`
+
+**Set `SOLANA_RPC_URL` before you share the link.** This is the one thing that will
+break a live deployment. The default endpoint is Solana's free public RPC, which is
+fine for one person on a CLI and will start returning `429` almost immediately under
+real web traffic — every scan costs 1-5 RPC calls. Get a free key from Helius,
+QuickNode, or Triton and set it under **Variables**:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SOLANA_RPC_URL` | `mainnet` (public) | Your own RPC endpoint. **Set this.** |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins. Pin to your Netlify domain once deployed. |
+| `CACHE_TTL_SECONDS` | `120` | In-memory cache per mint, to spare your RPC quota. |
+
+### Deploy the frontend to Netlify
+
+1. Edit `frontend/index.html` and set `BASE_URL` to your Railway URL
+   (no trailing slash): `const BASE_URL = "https://your-app.up.railway.app";`
+2. Go to [app.netlify.com/drop](https://app.netlify.com/drop) and **drag the
+   `frontend/` folder onto the page.** That's the whole deploy — it's one static
+   file with no build step.
+3. Optionally go back to Railway and set `CORS_ORIGINS` to your new Netlify domain,
+   so only your site can call the API.
+
+The page also accepts a deep link: `?mint=<address>` scans on load, which makes
+results shareable.
+
 ## Limitations
 
 Read these before trusting the output:

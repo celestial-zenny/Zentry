@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zentry — Solana token authority scanner</title>
+<meta name="description" content="Know who controls your token before you buy. Zentry maps who can freeze, seize, mint, or block sells on any Solana token." />
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #12121a;
+    --panel-2: #16161f;
+    --border: #22222e;
+    --border-lit: #2c2c3a;
+    --text: #e8e8ef;
+    --text-dim: #9a9aab;
+    --text-faint: #6a6a7a;
+    --accent: #3b82f6;
+    --accent-dim: #1e3a6e;
+    --safe: #22c55e;
+    --caution: #eab308;
+    --danger: #ef4444;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 20px;
+  }
+
+  .wrap { width: 100%; max-width: 760px; margin: 0 auto; flex: 1; }
+
+  /* ---------- header ---------- */
+  header { padding: 64px 0 36px; text-align: center; }
+
+  .wordmark {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .wordmark .z { color: var(--accent); }
+
+  .tagline { color: var(--text-dim); font-size: 16px; }
+
+  /* ---------- search ---------- */
+  .search { display: flex; gap: 10px; margin-bottom: 14px; }
+
+  input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 15px 16px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input[type="text"]::placeholder { color: var(--text-faint); font-family: var(--sans); }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+  }
+
+  button.scan {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 15px 26px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, opacity .15s;
+  }
+  button.scan:hover:not(:disabled) { background: #2f74e8; }
+  button.scan:disabled { opacity: .5; cursor: not-allowed; }
+  button.scan:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+  .examples {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-faint);
+    margin-bottom: 40px;
+  }
+  .examples button {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .examples button:hover { border-color: var(--accent); color: var(--text); }
+
+  /* ---------- states ---------- */
+  #state { margin-bottom: 40px; }
+
+  .loading { text-align: center; padding: 48px 0; }
+  .spinner {
+    width: 26px; height: 26px; margin: 0 auto 16px;
+    border: 2px solid var(--border-lit);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { color: var(--text-dim); font-size: 14px; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
+
+  .errorbox {
+    background: rgba(239,68,68,.07);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+  .errorbox h3 { color: var(--danger); font-size: 14px; margin-bottom: 6px; font-weight: 600; }
+  .errorbox p { color: var(--text-dim); font-size: 14px; }
+
+  /* ---------- results ---------- */
+  .banner {
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 12px;
+  }
+  .banner.safe    { border-left-color: var(--safe);    background: rgba(34,197,94,.055); }
+  .banner.caution { border-left-color: var(--caution); background: rgba(234,179,8,.055); }
+  .banner.danger  { border-left-color: var(--danger);  background: rgba(239,68,68,.055); }
+
+  .banner-top {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .verdict { font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+  .banner.safe .verdict    { color: var(--safe); }
+  .banner.caution .verdict { color: var(--caution); }
+  .banner.danger .verdict  { color: var(--danger); }
+  .score { color: var(--text-faint); font-size: 13px; font-family: var(--mono); }
+  .banner p { color: var(--text-dim); font-size: 14.5px; }
+
+  .meta {
+    display: flex; gap: 8px 20px; flex-wrap: wrap;
+    padding: 0 24px 20px; font-size: 13px; color: var(--text-faint);
+  }
+  .meta b { color: var(--text-dim); font-weight: 500; }
+  .meta .addr { font-family: var(--mono); }
+
+  .cards { display: grid; gap: 10px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.safe { background: var(--safe); box-shadow: 0 0 8px rgba(34,197,94,.5); }
+  .dot.caution { background: var(--caution); box-shadow: 0 0 8px rgba(234,179,8,.5); }
+  .dot.danger { background: var(--danger); box-shadow: 0 0 8px rgba(239,68,68,.5); }
+
+  .card-title { font-size: 15px; font-weight: 600; flex: 1; }
+
+  /* text label as well as colour - never rely on hue alone */
+  .pill {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 20px; flex: none;
+  }
+  .pill.safe    { color: var(--safe);    background: rgba(34,197,94,.12); }
+  .pill.caution { color: var(--caution); background: rgba(234,179,8,.12); }
+  .pill.danger  { color: var(--danger);  background: rgba(239,68,68,.12); }
+
+  .card-q { color: var(--text-faint); font-size: 13px; margin-bottom: 10px; }
+  .card-explain { color: var(--text-dim); font-size: 14px; }
+
+  .holder { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; }
+  .holder .lbl { color: var(--text-faint); }
+  .holder code {
+    font-family: var(--mono); color: var(--accent);
+    cursor: pointer; word-break: break-all;
+  }
+  .holder code:hover { text-decoration: underline; }
+  .holder .kind { color: var(--text-faint); display: block; margin-top: 3px; }
+
+  details.tech { margin-top: 12px; }
+  details.tech summary {
+    cursor: pointer; color: var(--text-faint); font-size: 13px;
+    padding: 12px 0; list-style: none; user-select: none;
+  }
+  details.tech summary:hover { color: var(--text-dim); }
+  details.tech summary::-webkit-details-marker { display: none; }
+  details.tech summary::before { content: "▸ "; }
+  details.tech[open] summary::before { content: "▾ "; }
+  .finding {
+    display: flex; gap: 12px; padding: 9px 0;
+    border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .finding .sev {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+    flex: none; width: 62px; padding-top: 3px;
+  }
+  .sev.CRITICAL { color: var(--danger); }
+  .sev.HIGH { color: #f87171; }
+  .sev.MEDIUM { color: var(--caution); }
+  .sev.LOW { color: #38bdf8; }
+  .sev.INFO { color: var(--text-faint); }
+  .finding .fdetail { color: var(--text-faint); }
+  .finding .ftitle { color: var(--text-dim); display: block; }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+    background: var(--panel-2); border: 1px solid var(--border-lit);
+    border-radius: 8px; padding: 9px 18px; font-size: 13px; color: var(--text);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+
+  footer {
+    text-align: center; padding: 44px 0 30px;
+    color: var(--text-faint); font-size: 13px;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    header { padding: 40px 0 28px; }
+    .wordmark { font-size: 23px; }
+    .search { flex-direction: column; }
+    .meta { padding: 0 4px 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="wordmark"><span class="z">Z</span>entry</div>
+    <p class="tagline">Know who controls your token before you buy.</p>
+  </header>
+
+  <form class="search" id="form" autocomplete="off">
+    <label for="mint" class="sr-only" style="position:absolute;left:-9999px">Solana token mint address</label>
+    <input type="text" id="mint" placeholder="Paste Solana token mint address..." spellcheck="false" />
+    <button type="submit" class="scan" id="btn">Scan Token</button>
+  </form>
+
+  <div class="examples">
+    <span>Try:</span>
+    <button type="button" data-mint="DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263">BONK</button>
+    <button type="button" data-mint="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">USDC</button>
+    <button type="button" data-mint="2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo">PYUSD</button>
+  </div>
+
+  <div id="state" aria-live="polite"></div>
+
+</div>
+
+<footer>
+  Built with <strong>Zentry</strong> — open source Solana authority scanner
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Point this at your deployed backend. Locally this is the uvicorn address;
+// after deploying to Railway swap in e.g. "https://zentry-production.up.railway.app"
+// ---------------------------------------------------------------------------
+const BASE_URL = "http://127.0.0.1:8077";
+
+const form  = document.getElementById("form");
+const input = document.getElementById("mint");
+const btn   = document.getElementById("btn");
+const state = document.getElementById("state");
+const toastEl = document.getElementById("toast");
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+
+const short = (a) => (a && a.length > 16 ? a.slice(0, 8) + "…" + a.slice(-8) : a || "");
+
+let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+}
+
+document.querySelectorAll(".examples button").forEach((b) => {
+  b.addEventListener("click", () => {
+    input.value = b.dataset.mint;
+    form.requestSubmit();
+  });
+});
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  scan(input.value.trim());
+});
+
+function showLoading() {
+  state.innerHTML =
+    '<div class="loading"><div class="spinner"></div><p>Resolving authority graph on-chain…</p></div>';
+}
+
+function showError(title, msg) {
+  state.innerHTML =
+    '<div class="errorbox"><h3>' + esc(title) + "</h3><p>" + esc(msg) + "</p></div>";
+}
+
+async function scan(mint) {
+  if (!mint) {
+    showError("No address entered", "Paste a Solana token mint address to scan.");
+    return;
+  }
+  btn.disabled = true;
+  showLoading();
+  try {
+    const res = await fetch(BASE_URL.replace(/\/$/, "") + "/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mint }),
+    });
+
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* non-JSON body */ }
+
+    if (!res.ok) {
+      const detail = data && typeof data.detail === "string"
+        ? data.detail
+        : "The scanner returned an unexpected response (HTTP " + res.status + ").";
+      showError("Could not scan that token", detail);
+      return;
+    }
+    render(data);
+  } catch (err) {
+    showError(
+      "Cannot reach the scanner",
+      "No response from " + BASE_URL + ". Check that the backend is running and that " +
+      "BASE_URL at the top of this file points at it."
+    );
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+const VERDICT_TEXT = {
+  safe:    "No one controls your token",
+  caution: "Some control exists — check who holds it",
+  danger:  "Someone has power over your tokens",
+};
+
+function render(d) {
+  const risk = ["safe", "caution", "danger"].includes(d.overall_risk) ? d.overall_risk : "caution";
+
+  let html = "";
+
+  html += '<div class="banner ' + risk + '">';
+  html +=   '<div class="banner-top">';
+  html +=     '<span class="verdict">' + esc(VERDICT_TEXT[risk]) + "</span>";
+  html +=     '<span class="score">risk ' + esc(d.score) + "/100</span>";
+  html +=   "</div>";
+  html +=   "<p>" + esc(d.summary) + "</p>";
+  html += "</div>";
+
+  html += '<div class="meta">';
+  if (d.label) html += "<span><b>" + esc(d.label) + "</b></span>";
+  html += "<span>" + esc(d.token_standard) + "</span>";
+  if (typeof d.supply === "number") {
+    html += "<span>supply " + d.supply.toLocaleString(undefined, { maximumFractionDigits: 4 }) + "</span>";
+  }
+  html += '<span class="addr">' + esc(short(d.mint)) + "</span>";
+  html += "</div>";
+
+  html += '<div class="cards">';
+  (d.authorities || []).forEach((a) => {
+    const r = ["safe", "caution", "danger"].includes(a.risk) ? a.risk : "caution";
+    html += '<div class="card">';
+    html +=   '<div class="card-head">';
+    html +=     '<span class="dot ' + r + '"></span>';
+    html +=     '<span class="card-title">' + esc(a.title) + "</span>";
+    html +=     '<span class="pill ' + r + '">' + esc(r) + "</span>";
+    html +=   "</div>";
+    html +=   '<p class="card-q">' + esc(a.question) + "</p>";
+    html +=   '<p class="card-explain">' + esc(a.explanation) + "</p>";
+    if (a.holder) {
+      html += '<div class="holder"><span class="lbl">Held by </span>';
+      html +=   '<code data-copy="' + esc(a.holder) + '" title="Click to copy">' + esc(a.holder) + "</code>";
+      if (a.held_as) html += '<span class="kind">' + esc(a.held_as) + "</span>";
+      html += "</div>";
+    }
+    html += "</div>";
+  });
+  html += "</div>";
+
+  const findings = d.technical_findings || [];
+  if (findings.length) {
+    html += '<details class="tech"><summary>Technical detail (' + findings.length + ")</summary>";
+    findings.forEach((f) => {
+      html += '<div class="finding"><span class="sev ' + esc(f.severity) + '">' + esc(f.severity) + "</span>";
+      html +=   '<span class="fdetail"><span class="ftitle">' + esc(f.title) + "</span>" + esc(f.detail) + "</span>";
+      html += "</div>";
+    });
+    html += "</details>";
+  }
+
+  state.innerHTML = html;
+
+  state.querySelectorAll("code[data-copy]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const v = el.dataset.copy;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(v).then(() => toast("Address copied"), () => toast(v));
+      } else {
+        toast(v);
+      }
+    });
+  });
+}
+
+// Deep link support: index.html?mint=<address>
+const q = new URLSearchParams(location.search).get("mint");
+if (q) { input.value = q; scan(q.trim()); }
+</script>
+</body>
+</html>
