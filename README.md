@@ -58,7 +58,16 @@ authority graph  (2b1kV6Dk…)
 ```bash
 git clone https://github.com/USER/authgraph.git
 cd authgraph
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
+```
+
+On Debian-derived systems (Parrot, Kali, Ubuntu 23.04+) the system Python is
+`EXTERNALLY-MANAGED` (PEP 668), so the venv above is required rather than
+optional. To skip installing altogether, run it straight from a clone:
+
+```bash
+python3 -m authgraph scan <MINT>
 ```
 
 Runtime deps are only `requests`, `rich`, and `typer` — no `web3`, no `solana-py`, no compiled extensions. The one RPC method it needs (`getAccountInfo`) requires **no API key** on the public mainnet endpoint.
