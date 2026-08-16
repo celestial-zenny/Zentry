@@ -1,4 +1,4 @@
-# authgraph
+# Zentry
 
 **Map the transitive authority graph behind a Solana token — who can freeze you, seize your balance, mint against you, or block your sells.**
 
@@ -7,7 +7,7 @@ Every other token checker asks *"is `mintAuthority` null?"* and stops there. Tha
 1. **It ignores who holds the authority.** An authority on a bare keypair is one stolen key away from a drain. The same authority behind a multisig is a governance process. A null-check scores them identically.
 2. **It ignores Token-2022 entirely.** Token Extensions introduced privileges with no EVM equivalent — `PermanentDelegate` can move *anyone's* tokens; a `TransferHook` runs arbitrary code on every transfer and can reject sells. And that hook program is usually **itself upgradeable**, so a hook that permits sells today can be swapped tomorrow.
 
-`authgraph` resolves the whole chain: mint → every authority → what kind of account holds it → and for hook programs, onward to the ProgramData account to read *its* upgrade authority.
+`zentry` resolves the whole chain: mint → every authority → what kind of account holds it → and for hook programs, onward to the ProgramData account to read *its* upgrade authority.
 
 ---
 
@@ -20,15 +20,15 @@ USDC      44/100  both authorities active, but held by program-owned multisigs
 PYUSD    100/100  seven authorities on ONE bare keypair, incl. PermanentDelegate
 ```
 
-USDC and PYUSD both carry full issuer privileges. A null-check rates them the same. `authgraph` shows that one keeps them behind multisigs and the other does not:
+USDC and PYUSD both carry full issuer privileges. A null-check rates them the same. `zentry` shows that one keeps them behind multisigs and the other does not:
 
 ```
-$ authgraph scan 2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo
+$ zentry scan 2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo
 
-╭───────────────────────────────── authgraph ──────────────────────────────────╮
-│ 2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo                                 │
-│ PYUSD (Paxos / PayPal)   ·   Token-2022   ·   678,763,765.2299 supply         │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────── zentry ──────────────────────────────────╮
+│ 2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo                               │
+│ PYUSD (Paxos / PayPal)   ·   Token-2022   ·   678,763,765.2299 supply       │
+╰────────────────────────────────────────────────────────────────────────────╯
    DANGEROUS   risk score 100/100
 
 severity    finding                                     why it matters
@@ -56,8 +56,8 @@ authority graph  (2b1kV6Dk…)
 ## Install
 
 ```bash
-git clone https://github.com/USER/authgraph.git
-cd authgraph
+git clone https://github.com/celestial-zenny/Zentry.git
+cd Zentry
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
@@ -67,7 +67,7 @@ On Debian-derived systems (Parrot, Kali, Ubuntu 23.04+) the system Python is
 optional. To skip installing altogether, run it straight from a clone:
 
 ```bash
-python3 -m authgraph scan <MINT>
+python3 -m zentry scan <MINT>
 ```
 
 Runtime deps are only `requests`, `rich`, and `typer` — no `web3`, no `solana-py`, no compiled extensions. The one RPC method it needs (`getAccountInfo`) requires **no API key** on the public mainnet endpoint.
@@ -75,21 +75,21 @@ Runtime deps are only `requests`, `rich`, and `typer` — no `web3`, no `solana-
 ## Usage
 
 ```bash
-authgraph scan <MINT>                      # full authority report
-authgraph scan <MINT> --json               # machine-readable
-authgraph scan <MINT> --no-follow-hooks    # skip the transitive hook walk
-authgraph scan <MINT> -c devnet            # or -c https://your-rpc.example
-authgraph program <PROGRAM_ID>             # can this program be rewritten, and by whom?
-authgraph health                           # is the RPC answering?
+zentry scan <MINT>                      # full authority report
+zentry scan <MINT> --json               # machine-readable
+zentry scan <MINT> --no-follow-hooks    # skip the transitive hook walk
+zentry scan <MINT> -c devnet            # or -c https://your-rpc.example
+zentry program <PROGRAM_ID>             # can this program be rewritten, and by whom?
+zentry health                           # is the RPC answering?
 ```
 
-`authgraph program` is useful on its own. Note that the two token programs differ:
+`zentry program` is useful on its own. Note that the two token programs differ:
 
 ```
-$ authgraph program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+$ zentry program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
    IMMUTABLE      # legacy SPL Token: upgrade authority revoked
 
-$ authgraph program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
+$ zentry program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
    UPGRADEABLE    # Token-2022: still rewritable by a single keypair
   upgrade authority : AeLmXCbPaQHGWRLr2saFsEVfmMNuKnxRAbWCT9P5twgz
 ```
@@ -99,7 +99,7 @@ $ authgraph program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
 Exit codes make it gateable: **0** = below the risk threshold, **1** = at or above it, **2** = bad input or RPC failure.
 
 ```yaml
-- run: authgraph scan ${{ env.MINT }}    # fails the job at score >= 40
+- run: zentry scan ${{ env.MINT }}    # fails the job at score >= 40
 ```
 
 ## What it flags
@@ -121,7 +121,7 @@ Exit codes make it gateable: **0** = below the risk threshold, **1** = at or abo
 
 ### The authority-kind signal
 
-Rather than ship an unverifiable allowlist of "known good" multisigs, `authgraph` **derives** concentration from the authority account's owner:
+Rather than ship an unverifiable allowlist of "known good" multisigs, `zentry` **derives** concentration from the authority account's owner:
 
 | Kind | Meaning | Risk |
 |---|---|---|

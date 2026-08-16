@@ -9,10 +9,10 @@ import struct
 
 import pytest
 
-from authgraph import b58, graph
-from authgraph.graph import ABSENT, PDA, WALLET
-from authgraph.layouts import BPF_UPGRADEABLE_LOADER, SYSTEM_PROGRAM, TOKEN_2022_PROGRAM
-from authgraph.rpc import Account
+from zentry import b58, graph
+from zentry.graph import ABSENT, PDA, WALLET
+from zentry.layouts import BPF_UPGRADEABLE_LOADER, SYSTEM_PROGRAM, TOKEN_2022_PROGRAM
+from zentry.rpc import Account
 
 
 def pk(seed: int) -> str:

@@ -9,8 +9,8 @@ import pathlib
 
 import pytest
 
-from authgraph import layouts
-from authgraph.layouts import TOKEN_2022_PROGRAM, TOKEN_PROGRAM
+from zentry import layouts
+from zentry.layouts import TOKEN_2022_PROGRAM, TOKEN_PROGRAM
 
 FIXTURES = json.loads((pathlib.Path(__file__).parent / "fixtures" / "accounts.json").read_text())
 

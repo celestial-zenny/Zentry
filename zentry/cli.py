@@ -50,7 +50,7 @@ def _render(report: graph.Report) -> None:
         Panel(
             f"[bold]{m.pubkey}[/bold]\n"
             f"{title}   ·   {prog}   ·   {m.supply_ui:,.4f} supply   ·   {m.decimals} decimals",
-            title="authgraph",
+            title="zentry",
             border_style="blue",
         )
     )
@@ -203,7 +203,7 @@ def program(
         Panel(
             f"[bold]{rep.program}[/bold]\n{rep.label or 'unlabelled program'}   ·   "
             f"loader {registry.label_program(rep.loader) or rep.loader}",
-            title="authgraph program",
+            title="zentry program",
             border_style="blue",
         )
     )
@@ -237,7 +237,7 @@ def health(
 @app.command()
 def version() -> None:
     """Print the version."""
-    console.print(f"authgraph {__version__}")
+    console.print(f"zentry {__version__}")
 
 
 def main() -> None:

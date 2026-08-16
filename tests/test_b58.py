@@ -1,7 +1,7 @@
 import pytest
 
-from authgraph import b58
-from authgraph.layouts import SYSTEM_PROGRAM
+from zentry import b58
+from zentry.layouts import SYSTEM_PROGRAM
 
 
 def test_roundtrip_random_like():
