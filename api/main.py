@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from zentry import __version__, b58, graph
@@ -476,8 +478,8 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/")
-def root() -> dict[str, Any]:
+@app.get("/api")
+def api_info() -> dict[str, Any]:
     return {
         "name": "Zentry",
         "version": __version__,
@@ -559,3 +561,14 @@ def scan(req: ScanRequest) -> dict[str, Any]:
         for k in sorted(_cache, key=lambda k: _cache[k][0])[:128]:
             _cache.pop(k, None)
     return {**payload, "cached": False}
+
+
+# --------------------------------------------------------------------------- #
+# frontend
+# --------------------------------------------------------------------------- #
+# Serving the UI from the API process gives one deploy, one URL, and no CORS to
+# configure - the page fetches its own origin. Mounted last so /scan, /health
+# and /api keep priority over this catch-all.
+_FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
+if _FRONTEND.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND, html=True), name="frontend")

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: zentry
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # Public mainnet RPC is rate limited hard enough that a handful of
+      # visitors will start seeing 503s. Set this to a Helius/QuickNode URL in
+      # the Render dashboard; sync:false keeps the key out of git.
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: CACHE_TTL_SECONDS
+        value: "300"

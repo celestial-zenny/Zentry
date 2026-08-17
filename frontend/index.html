@@ -288,10 +288,24 @@
 
 <script>
 // ---------------------------------------------------------------------------
-// Point this at your deployed backend. Locally this is the uvicorn address;
-// after deploying to Railway swap in e.g. "https://zentry-production.up.railway.app"
+// Where the scanner API lives.
+//
+// In production the FastAPI app serves this file itself, so the API is on the
+// same origin and a relative path is all that's needed - nothing to edit on
+// deploy. The exception is local development behind a separate static server
+// (python3 -m http.server 8078), where uvicorn is on its own port.
+// ?api=<url> overrides both, for pointing a local page at a deployed backend.
 // ---------------------------------------------------------------------------
-const BASE_URL = "http://127.0.0.1:8077";
+const BASE_URL = (() => {
+  const override = new URLSearchParams(location.search).get("api");
+  if (override) return override;
+  if (location.port === "8078" || location.protocol === "file:") {
+    return "http://127.0.0.1:8077";
+  }
+  return "";
+})();
+
+const API_ORIGIN = BASE_URL || location.origin;
 
 const form  = document.getElementById("form");
 const input = document.getElementById("mint");
@@ -363,8 +377,8 @@ async function scan(mint) {
   } catch (err) {
     showError(
       "Cannot reach the scanner",
-      "No response from " + BASE_URL + ". Check that the backend is running and that " +
-      "BASE_URL at the top of this file points at it."
+      "No response from " + API_ORIGIN + ". If you are running Zentry locally, check " +
+      "that the backend is up: python3 -m uvicorn api.main:app --port 8077"
     );
   } finally {
     btn.disabled = false;
